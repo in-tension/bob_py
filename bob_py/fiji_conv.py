@@ -7,11 +7,9 @@ from ij.plugin.frame import RoiManager
 from ij.plugin.filter import Analyzer
 
 
-
-# class MeasInts :
+""" int to use to set measurements to all"""
 MEAS_ALL = 2092799
-	# GEO =
-	#
+
 ## need to add close the other images
 def force_close_all() :
 	while WindowManager.getImageCount() > 0 :
@@ -36,13 +34,13 @@ def add_roi(roi, name=None) :
 	if name is not None :
 		rm.rename(rm.getCount() - 1, name)
 
-def log_dub(s) :
-	IJ.log(s)
-	print('IJ.log: {}'.format(s))
-
 
 ## obj should be a collection
 def jpprint(obj) :
+	"""
+		pprints java collections as well as python collections
+		obj should be a collection
+	"""
 	for item in obj :
 		print(item)
 
@@ -66,12 +64,14 @@ def swap_ground_colors() :
 	Toolbar.setBackgroundColor(cur_fore)
 
 def roi_xy(roi) :
-	# print("roi_xy {}".format(roi))
-	# stats = roi.getStatistics()
-	# print(stats.roiX)
-	# return(stats.roiX, stats.roiY)
 	return (roi.getXBase(), roi.getYBase())
 
+def roi_cent(roi, integer=False) :
+	stats = roi.getStatistics()
+	if integer :
+		return (int(stats.xCentroid), int(stats.yCentroid))
+	else :
+		return (stats.xCentroid, stats.yCentroid)
 
 
 def rt_to_arr_dict() :
@@ -89,9 +89,7 @@ def rt_to_arr_dict() :
 
 
 def measure(imp, roi=None, headings=None) :
-	# a = Analyzer()
 	setMeasurementInt(MEAS_ALL)
-
 
 	## possibly don't include roi
 	if roi is not None :
@@ -112,6 +110,7 @@ def measure(imp, roi=None, headings=None) :
 			except KeyError :
 				IJ.log('fiji_conv.measure() : no heading {}'.format(heading))
 		return out_arr_dict
+
 
 
 

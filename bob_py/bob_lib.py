@@ -189,11 +189,6 @@ def run_hemiseg(exper, hemiseg_name) :
 		vl3.roi = read_vl_file(hs_files[VL3_SUF], hseg.cal)
 		hseg.vl3 = vl3
 		exper.cells[(vl3.hs_suf, vl3.name)] = vl3
-#		hseg.raw_imp.setRoi(vl3.roi)
-#		if DISP :
-#			rm.addRoi(vl3.roi)#, 0)
-#			rm.rename(rm.getCount()-1, 'vl3')
-
 
 
 	if VL4_SUF not in hs_files :
@@ -203,24 +198,13 @@ def run_hemiseg(exper, hemiseg_name) :
 		vl4.roi = read_vl_file(hs_files[VL4_SUF], hseg.cal)
 		hseg.vl4 = vl4
 		exper.cells[(vl4.hs_suf, vl4.name)] = vl4
-#		hseg.raw_imp.setRoi(vl4.roi)
-#		if DISP :
-#			rm.addRoi(vl4.roi)
-#			rm.rename(rm.getCount()-1, 'vl4')
 
 
-	## TODO: change later to get nuc from raw_imp
-
+	## TODO: change to get nuc from raw_imp instead of nuc_bin_imp
 	if NUC_BIN_SUF not in hs_files :
 		log_dub('hemisegment {} does not have nuc-bin file {}'.format(hemiseg_name, hemiseg_name + NUC_BIN_SUF))
 	else :
 		hseg.nuc_bin_imp = IJ.openImage(hs_files[NUC_BIN_SUF])
-
-		# arr_dict = measure(hseg.nuc_bin_imp, headings = ["%Area"])
-		# IJ.run("Colors...", "foreground=black background=white selection=yellow");
-		# if arr_dict["%Area"] < 50 :
-		# 	IJ.run("Colors...", "foreground=white background=black selection=yellow");
-
 
 		if IN_DEV :
 			hseg.nuc_bin_imp.show()
@@ -230,22 +214,16 @@ def run_hemiseg(exper, hemiseg_name) :
 		if len(problem_nucs) > 0 :
 			hseg.problem_nucs = problem_nucs
 
-		# log_dub("'fore")
 		make_vor(hseg)
-		# log_dub("aft'")
-	## TODO: put vl stuff under relavent if statement
-
 
 
 	exper.hsegs[hseg.name] = hseg
 
-#	exper.hsegs.append(hseg)
-#	exper.cells.append(vl3)
-#	exper.cells.append(vl4)
+
 	if DISP :
-		# pass
 		disp_hseg(hseg)
-#		print('disp')
+
+
 	return exper
 
 
@@ -265,8 +243,7 @@ def read_vl_file(file_path, cal) :
 
 
 
-def make_nucs(hseg) : #, vl3, vl4) :
-	# log_dub('make_nucs')
+def make_nucs(hseg) :
 	rm = RoiManager.getRoiManager()
 	rm.reset()
 
@@ -281,19 +258,16 @@ def make_nucs(hseg) : #, vl3, vl4) :
 
 	problem_nucs = []
 
-#	print(rois)
 	for roi in rois :
-#		x = hseg.cal.getRawX(roi.getXBase())
-		x = int(roi.getXBase())
-		y = int(roi.getYBase())
 
-		if hseg.vl3.roi.contains(x,y) :
-	#		hseg.vl3.nucs.append( /
+		nuc_cent = roi_cent(roi, integer=True)
+
+		if hseg.vl3.roi.contains(*nuc_cent) :
 			hseg.vl3.add_nuc(roi)
-		elif hseg.vl4.roi.contains(x,y) :
+		elif hseg.vl4.roi.contains(*nuc_cent) :
 			hseg.vl4.add_nuc(roi)
 		else :
-			log_dub('Nuc not in vl3 or vl4 for hemisegment {}'.format(hseg.name))
+			IJ.log('Nuc not in vl3 or vl4 for hemisegment {}'.format(hseg.name))
 			problem_nucs.append(roi)
 
 	return problem_nucs
@@ -312,80 +286,44 @@ def vor_cell(nuc_bin_imp, cell) :
 	rm.reset()
 
 
-	# nuc_bin_imp.setRoi(cell.roi)
 	nuc_bin_with_cell, offset_cell_roi = ImpWithCrop.setup_imp_and_roi(nuc_bin_imp, cell.roi)
-
-	# print("cell.roi = {}".format(cell.roi))
-	# print(nuc_bin_with_cell)
-
 	nuc_bin_with_cell.crop_imp.setRoi(None)
-
-
-
-
-
 
 	IJ.run(nuc_bin_with_cell.crop_imp, "Revert", "")
 	# IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
-
 	IJ.run(nuc_bin_with_cell.crop_imp, "Voronoi", "")
-	# input()
-	# invert()
+
 	ip = nuc_bin_with_cell.crop_imp.getProcessor()
 	ip.setMinAndMax(0,1)
 	IJ.run(nuc_bin_with_cell.crop_imp, "Apply LUT", "")
 	IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
 
 
-
-	# log_dub('make_vor done')
-	# hseg.nuc_bin_imp.setRoi(hseg.vl3.roi)
-	# IJ.run(hseg.nuc_bin_imp, "Analyze Particles...", "add")
-	# hseg.vl3.vor = rm.getRoisAsArray()
-
-
-
 	offset_cell_roi.set_to_crop()
 
 
 	IJ.run(nuc_bin_with_cell.crop_imp, "Analyze Particles...", "add")
-
 	vor_rois = rm.getRoisAsArray()
 
 	nuc_inds = [x for x in range(len(cell.nucs))]
-	tab = '   '
-
 	for vor_roi_crop in vor_rois :
-
-		# print(vor_roi_crop)
-		# print(roi_x//y(vor_roi_crop))
 		offset_vor_roi = OffsetRoi(nuc_bin_with_cell, vor_roi_crop, crop_loc=roi_xy(vor_roi_crop))
-		# print(off/set_vor_roi)
 		vor_roi = offset_vor_roi.get_main_roi()
 		vor_roi.setLocation(*offset_vor_roi.main_loc)
-
-		# add_roi(vor_roi, "vor_roi")
-		# vor_roi.setLocation(*offset_vor_roi.main_loc)
-
-		# print(vor_roi)
-		# input()
 
 
 		temp = None
 		for i, nuc_ind in enumerate(nuc_inds) :
-			print(len(nuc_inds))
-
-
 			nuc_roi = cell.nucs[nuc_ind].roi
 
-			x = int(nuc_roi.getXBase())
-			y = int(nuc_roi.getYBase())
+			nuc_cent = roi_cent(nuc_roi, integer=True)
+			# nuc_cent = [int(nuc_cent[0]), int(nuc_cent[1])]
 
-			if vor_roi.contains(x,y) :
+			if vor_roi.contains(*nuc_cent) :
 
 				cell.nucs[nuc_ind].vor_roi = vor_roi
 
-				## I don't think I need to do this, I could just use i outside of loop but I don't like that
+				## I don't think I need to do this, I could just use i outside of loop but it feels so insecure or something
 				temp = i
 
 				break
@@ -393,19 +331,28 @@ def vor_cell(nuc_bin_imp, cell) :
 				pass
 
 
-
 		else :
-			log_dub('cell: {}, issue with voronoi nuc match up'.format(cell.name))
-			add_roi(vor_roi)
+			IJ.log('cell: {}, issue with voronoi nuc match up'.format(cell.name))
 
-			# for nuc in cell.nucs :
-			# 	add_roi(nuc.roi)
+			# rm.reset()
+			#
+			# for i, nuc in enumerate(cell.nucs) :
+			#
+			# 	x = int(nuc.roi.getXBase())
+			# 	y = int(nuc.roi.getYBase())
+			# 	print('{}. ({},{})'.format(i,x,y))
+			# 	add_roi(Roi(x,y,10,10), str(i))
+			# print(nuc_inds)
+			#
+			# add_roi(vor_roi, "vor_roi")
+
+
 
 
 		if temp is not None :
 			del nuc_inds[temp]
 
-	# force_close(nuc_bin_with_cell.crop_imp)
+	force_close(nuc_bin_with_cell.crop_imp)
 
 
 
@@ -414,14 +361,13 @@ def vor_cell(nuc_bin_imp, cell) :
 
 ## could move to class
 def disp_hseg(hseg) :
-	if False :
+	if True :
 		RoiManager.getRoiManager().reset()
 
 	hseg.raw_imp.show()
 	hseg.nuc_bin_imp.show()
 
-	# rm = RoiManager.getRoiManager()
-	# rm.reset()
+
 	add_roi(hseg.vl3.roi, name='vl3')
 	add_roi(hseg.vl4.roi, name='vl4')
 
