@@ -1,0 +1,19 @@
+
+{
+  "channels" : {"1":["nuclei", 1], "2":["cell", 0], "3":["dna", 1]},
+
+
+
+
+}
+
+{
+
+  "top-slice" : 1,
+  "bot-slice" : 17,
+
+  "output" : {
+    "_cells.csv" : ["all measurements"],
+    "_nuc.csv" : ["geometric", "voronoi", "dna intensity"]
+  }
+}
