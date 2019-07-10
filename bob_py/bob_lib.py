@@ -2,6 +2,8 @@ from ij import IJ, WindowManager
 from ij.measure import ResultsTable
 from ij.gui import NonBlockingGenericDialog, Roi, PolygonRoi
 from ij.io import DirectoryChooser
+from ij.plugin import Duplicator
+
 from ij.plugin.frame import RoiManager
 
 import os
@@ -94,8 +96,10 @@ class Hemiseg :
 		self.raw_imp = None
 		self.nuc_bin_imp = None
 
-		self.vl3 = None
-		self.vl4 = None
+		# self.vl3 = None
+		# self.vl4 = None
+
+		self.cells = {}
 
 		self.problem_nucs = None
 
@@ -173,36 +177,40 @@ def run_hemiseg(exper, hemiseg_name) :
 
 
 	if RAW_SUF not in hs_files :
-		log_dub('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
-		raise Exception('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
+		IJ.log('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
+		# raise Exception('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
 	else :
 		hseg.raw_imp = IJ.openImage(hs_files[RAW_SUF])
 		if IN_DEV :
 			hseg.raw_imp.show()
 		hseg.cal = hseg.raw_imp.getCalibration()
 
-
+	## TODO: Hemiseg as dict cells, currently manually doing keys
+	## in future, change csv file suf to _<muscle-name>_cell-roi.csv
 	if VL3_SUF not in hs_files :
-		log_dub('hemisegment {} does not have vl3 csv file {}'.format(hemiseg_name, hemiseg_name + VL3_SUF))
+		IJ.log('hemisegment {} does not have vl3 csv file {}'.format(hemiseg_name, hemiseg_name + VL3_SUF))
 	else :
 		vl3 = Cell(exper, hs_suf, 'vl3')
 		vl3.roi = read_vl_file(hs_files[VL3_SUF], hseg.cal)
-		hseg.vl3 = vl3
+		hseg.cells['vl3'] = vl3
+		# hseg.vl3 = vl3
 		exper.cells[(vl3.hs_suf, vl3.name)] = vl3
 
 
 	if VL4_SUF not in hs_files :
-		log_dub('hemisegment {} does not have vl4 csv file {}'.format(hemiseg_name, hemiseg_name + VL4_SUF))
+		IJ.log('hemisegment {} does not have vl4 csv file {}'.format(hemiseg_name, hemiseg_name + VL4_SUF))
 	else :
 		vl4 = Cell(exper, hs_suf, 'vl4')
 		vl4.roi = read_vl_file(hs_files[VL4_SUF], hseg.cal)
-		hseg.vl4 = vl4
+		hseg.cells['vl4'] = vl4
+
+		#hseg.vl4 = vl4
 		exper.cells[(vl4.hs_suf, vl4.name)] = vl4
 
 
 	## TODO: change to get nuc from raw_imp instead of nuc_bin_imp
 	if NUC_BIN_SUF not in hs_files :
-		log_dub('hemisegment {} does not have nuc-bin file {}'.format(hemiseg_name, hemiseg_name + NUC_BIN_SUF))
+		IJ.log('hemisegment {} does not have nuc-bin file {}'.format(hemiseg_name, hemiseg_name + NUC_BIN_SUF))
 	else :
 		hseg.nuc_bin_imp = IJ.openImage(hs_files[NUC_BIN_SUF])
 
@@ -217,6 +225,7 @@ def run_hemiseg(exper, hemiseg_name) :
 		make_vor(hseg)
 
 
+
 	exper.hsegs[hseg.name] = hseg
 
 
@@ -226,10 +235,53 @@ def run_hemiseg(exper, hemiseg_name) :
 
 	return exper
 
+def csv_to_col_dict(csv_path, cast_type=str) :
+    """
+    | reads a csv file and creates a dict of cols
+    | assumes first row is col names and that all are unique
+    """
+    rows = csv_to_rows(csv_path)
+    # print(rows)
+    # print('\n\n')
+
+    if cast_type is not None :
+        temp = [rows[0]]
+        temp.extend(arrs_cast_spec(rows[1:], cast_type=cast_type))
+        rows = temp
+
+    # print(rows)
+
+    cols = rotate(rows)
+
+
+    col_dict = {}
+    for col in cols :
+        col_dict[col[0]] = col[1:]
+
+    return col_dict
+
 
 def read_vl_file(file_path, cal) :
-
-	coord_col_dict = br.csv_to_col_dict(file_path, cast_type=float)
+	roi_csv_headings = ['X', 'Y']
+	# coord_col_dict_raw = br.csv_to_col_dict(file_path, cast_type=float)
+	#
+	# if list(coord_col_dict_raw.keys()) == roi_csv_headings :
+	# 	coord_col_dict = coord_col_dict_raw
+	# else :
+	# 	coord_col_dict = {}
+	#
+	# 	for (val, col), heading in zip(coord_col_dict_raw.items(), roi_csv_headings) :
+	# 		temp = [float(val)]
+	# 		temp.extend(col)
+	# 		coord_col_dict[heading] = temp
+	# 	# print(
+	# 	print(coord_col_dict)
+	coord_rows = br.csv_to_rows(file_path, cast_type=float)
+	if coord_rows[0] == roi_csv_headings :
+		coord_col_dict = br.csv_to_col_dict(file_path, cast_type=float)
+	else :
+		coord_cols = br.rotate(coord_rows)
+		coord_col_dict = {'X':coord_cols[0], 'Y':coord_cols[1]}
 
 	cal_func_dict = {'X' : cal.getRawX, 'Y' : cal.getRawY}
 	for col_name, cal_func in zip(coord_col_dict.keys(), cal_func_dict.values()) :
@@ -262,12 +314,18 @@ def make_nucs(hseg) :
 
 		nuc_cent = roi_cent(roi, integer=True)
 
-		if hseg.vl3.roi.contains(*nuc_cent) :
-			hseg.vl3.add_nuc(roi)
-		elif hseg.vl4.roi.contains(*nuc_cent) :
-			hseg.vl4.add_nuc(roi)
-		else :
-			IJ.log('Nuc not in vl3 or vl4 for hemisegment {}'.format(hseg.name))
+		found_cell = False
+		for cell in hseg.cells.values() :
+			if cell.roi.contains(*nuc_cent) :
+				cell.add_nuc(roi)
+				found_cell = True
+				break
+		# if hseg.vl3.roi.contains(*nuc_cent) :
+		# 	hseg.vl3.add_nuc(roi)
+		# elif hseg.vl4.roi.contains(*nuc_cent) :
+		# 	hseg.vl4.add_nuc(roi)
+		if not found_cell :
+			IJ.log('Nuc not in any cell for hemisegment {}'.format(hseg.name))
 			problem_nucs.append(roi)
 
 	return problem_nucs
@@ -275,8 +333,11 @@ def make_nucs(hseg) :
 
 
 def make_vor(hseg) :
-	vor_cell(hseg.nuc_bin_imp, hseg.vl3)
-	vor_cell(hseg.nuc_bin_imp, hseg.vl4)
+	for cell in hseg.cells.values() :
+		IJ.log(cell.name)
+		vor_cell(hseg.nuc_bin_imp, cell)
+	# vor_cell(hseg.nuc_bin_imp, hseg.vl3)
+	# vor_cell(hseg.nuc_bin_imp, hseg.vl4)
 
 
 
@@ -286,32 +347,54 @@ def vor_cell(nuc_bin_imp, cell) :
 	rm.reset()
 
 
-	nuc_bin_with_cell, offset_cell_roi = ImpWithCrop.setup_imp_and_roi(nuc_bin_imp, cell.roi)
-	nuc_bin_with_cell.crop_imp.setRoi(None)
 
-	IJ.run(nuc_bin_with_cell.crop_imp, "Revert", "")
-	# IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
-	IJ.run(nuc_bin_with_cell.crop_imp, "Voronoi", "")
+	# nuc_bin_cell = dup_and_crop(nuc_bin_imp, cell.roi)
 
-	ip = nuc_bin_with_cell.crop_imp.getProcessor()
+
+	# nuc_bin_with_cell, offset_cell_roi = ImpWithCrop.setup_imp_and_roi(nuc_bin_imp, cell.roi)
+	# nuc_bin_with_cell.crop_imp.setRoi(None)
+
+	d = Duplicator()
+	nuc_bin_copy = d.run(nuc_bin_imp)
+
+
+	IJ.run(nuc_bin_copy, "Make Binary", "")
+	# IJ.run(nuc_bin_copy, "Invert", "")
+	nuc_bin_copy.show()
+
+	nuc_bin_copy.setRoi(cell.roi)
+	IJ.run(nuc_bin_copy, "Clear Outside", "")
+	IJ.run(nuc_bin_copy, "Voronoi", "")
+
+	# IJ.run(nuc_bin_with_cell.crop_imp, "Revert", "")
+	# # IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
+	# IJ.run(nuc_bin_with_cell.crop_imp, "Voronoi", "")
+	#
+	ip = nuc_bin_copy.getProcessor()
 	ip.setMinAndMax(0,1)
-	IJ.run(nuc_bin_with_cell.crop_imp, "Apply LUT", "")
-	IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
+	IJ.run(nuc_bin_copy, "Apply LUT", "")
+	# IJ.run(nuc_bin_with_cell.crop_imp, "Invert", "")
 
 
-	offset_cell_roi.set_to_crop()
+	# offset_cell_roi.set_to_crop()
+	nuc_bin_copy.setRoi(cell.roi)
+	IJ.run(nuc_bin_copy, "Invert", "")
+#
 
-
-	IJ.run(nuc_bin_with_cell.crop_imp, "Analyze Particles...", "add")
+	IJ.run(nuc_bin_copy, "Analyze Particles...", "add")
 	vor_rois = rm.getRoisAsArray()
 
+
+
+
+
 	nuc_inds = [x for x in range(len(cell.nucs))]
-	for vor_roi_crop in vor_rois :
-		offset_vor_roi = OffsetRoi(nuc_bin_with_cell, vor_roi_crop, crop_loc=roi_xy(vor_roi_crop))
-		vor_roi = offset_vor_roi.get_main_roi()
-		vor_roi.setLocation(*offset_vor_roi.main_loc)
-
-
+	for vor_roi in vor_rois :
+		# offset_vor_roi = OffsetRoi(nuc_bin_with_cell, vor_roi_crop, crop_loc=roi_xy(vor_roi_crop))
+		# vor_roi = offset_vor_roi.get_main_roi()
+		# vor_roi.setLocation(*offset_vor_roi.main_loc)
+		#
+		#
 		temp = None
 		for i, nuc_ind in enumerate(nuc_inds) :
 			nuc_roi = cell.nucs[nuc_ind].roi
@@ -329,6 +412,8 @@ def vor_cell(nuc_bin_imp, cell) :
 				break
 			else :
 				pass
+
+
 
 
 		else :
@@ -352,7 +437,8 @@ def vor_cell(nuc_bin_imp, cell) :
 		if temp is not None :
 			del nuc_inds[temp]
 
-	force_close(nuc_bin_with_cell.crop_imp)
+
+	force_close(nuc_bin_copy)
 
 
 
@@ -368,24 +454,37 @@ def disp_hseg(hseg) :
 	hseg.nuc_bin_imp.show()
 
 
-	add_roi(hseg.vl3.roi, name='vl3')
-	add_roi(hseg.vl4.roi, name='vl4')
 
-	for i, nuc in enumerate(hseg.vl3.nucs) :
-		add_roi(nuc.roi, name='vl3 nuc{}'.format(i))
+	for cell in hseg.cells.values() :
 
-	for i, nuc in enumerate(hseg.vl3.nucs) :
-		add_roi(nuc.vor_roi, name='vl3 vor{}'.format(i))
+		add_roi(cell.roi, name=cell.name)
 
-	for i, nuc in enumerate(hseg.vl4.nucs) :
-		if nuc.vor_roi == None :
-			print("nuc{}.vor_roi == None".format(i))
-		add_roi(nuc.roi, name='vl4 nuc{}'.format(i))
+		for i, nuc in enumerate(cell.nucs) :
+			add_roi(nuc.roi, name='{} nuc {}'.format(cell.name, i))
 
-	for i, nuc in enumerate(hseg.vl4.nucs) :
-		if nuc.vor_roi == None :
-			print("nuc{}.vor_roi == None".format(i))
-		add_roi(nuc.vor_roi, name='vl4 vor{}'.format(i))
+
+		for i, nuc in enumerate(cell.nucs) :
+			add_roi(nuc.vor_roi, name='{} vor {}'.format(cell.name, i))
+		# input()
+
+	add_roi(hseg.cells['vl3'].roi, name='vl3')
+	add_roi(hseg.cells['vl4'].roi, name='vl4')
+
+	# for i, nuc in enumerate(hseg.vl3.nucs) :
+	# 	add_roi(nuc.roi, name='vl3 nuc{}'.format(i))
+	#
+	# for i, nuc in enumerate(hseg.vl3.nucs) :
+	# 	add_roi(nuc.vor_roi, name='vl3 vor{}'.format(i))
+	#
+	# for i, nuc in enumerate(hseg.vl4.nucs) :
+	# 	if nuc.vor_roi == None :
+	# 		print("nuc{}.vor_roi == None".format(i))
+	# 	add_roi(nuc.roi, name='vl4 nuc{}'.format(i))
+	#
+	# for i, nuc in enumerate(hseg.vl4.nucs) :
+	# 	if nuc.vor_roi == None :
+	# 		print("nuc{}.vor_roi == None".format(i))
+	# 	add_roi(nuc.vor_roi, name='vl4 vor{}'.format(i))
 
 	#
 	# from java.awt.event import WindowEvent

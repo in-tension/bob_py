@@ -41,7 +41,10 @@ if not canceled :
 
 
 	if IN_DEV :
-		exper_path = "/Users/baylieslab/Documents/Amelia/data/patrick/2019-05-20_Dmef2-2xeGFP"
+#		exper_path = "/Users/baylieslab/Documents/Amelia/data/patrick/2019-05-20_Dmef2-2xeGFP"
+		
+
+		exper_path = "/Users/baylieslab/Documents/Amelia/data/steffiData/150511_Lim3b-GFP_Hoe-GFP-H4K16ac-Fib-DL-Phal"
 	else :
 		dir_chooser = DirectoryChooser(__program__)
 		exper_path = dir_chooser.getDirectory()
@@ -49,7 +52,9 @@ if not canceled :
 			exper_path = exper_path[:-1]
 
 
-	exper_name = os.path.basename(exper_path)
+	exper_dir = os.path.basename(exper_path)
+	exper_name = exper_dir.split('_')[:2]
+	exper_name = '_'.join(exper_name)
 
 
 	exper = Exper(exper_path, exper_name)
@@ -66,7 +71,7 @@ if not canceled :
 	exper = run_hemiseg(exper, hemisegs[0])
 
 	hseg = br.one_value(exper.hsegs)
-	vl3 = hseg.vl3
+	vl3 = hseg.cells['vl3']
 	nuc = vl3.nucs[0]
 #	for hemiseg in hemisegs :
 #		exper = run_hemiseg(exper, hemiseg)
