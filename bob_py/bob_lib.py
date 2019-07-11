@@ -1,10 +1,6 @@
-from ij import IJ, WindowManager
-from ij.measure import ResultsTable
-from ij.gui import NonBlockingGenericDialog, Roi, PolygonRoi
-from ij.io import DirectoryChooser
-from ij.plugin import Duplicator
+""" """
 
-from ij.plugin.frame import RoiManager
+
 
 import os
 # from pprint import pprint
@@ -13,6 +9,16 @@ import datetime
 
 # import importlib
 import imp
+
+
+from ij import IJ, WindowManager
+from ij.measure import ResultsTable
+from ij.gui import NonBlockingGenericDialog, Roi, PolygonRoi
+from ij.io import DirectoryChooser
+from ij.plugin import Duplicator
+
+from ij.plugin.frame import RoiManager
+
 
 
 
@@ -149,6 +155,7 @@ class Nuc :
 
 
 def setup() :
+	"""setup"""
 	## set setting to save column headers
 	IJ.run("Input/Output...", "jpeg=85 gif=-1 file=.csv use_file save_column");
 	force_close_all()
@@ -158,6 +165,7 @@ def setup() :
 
 
 def run_hemiseg(exper, hemiseg_name) :
+	"""make everything for one hemisegment"""
 	hemiseg_path = os.path.join(exper.path, hemiseg_name)
 	hs_suf = hemiseg_name.replace(exper.name+'_', '')
 
@@ -236,6 +244,7 @@ def run_hemiseg(exper, hemiseg_name) :
 
 
 def read_vl_file(file_path, cal) :
+	"""open and xy csv file, uncalibrates the values and creates and returns a polygon roi"""
 	roi_csv_headings = ['X', 'Y']
 
 	coord_rows = br.csv_to_rows(file_path, cast_type=float)
@@ -258,6 +267,7 @@ def read_vl_file(file_path, cal) :
 
 
 def make_nucs(hseg) :
+	"""given an hseg, assumed to have a nuc_bin_imp, creates the nuc"""
 	rm = RoiManager.getRoiManager()
 	rm.reset()
 
@@ -292,6 +302,7 @@ def make_nucs(hseg) :
 
 
 def make_vor(hseg) :
+	"""given hseg, assumed to have cells and nucs"""
 	for cell in hseg.cells.values() :
 		IJ.log(cell.name)
 		vor_cell(hseg.nuc_bin_imp, cell)
@@ -300,6 +311,7 @@ def make_vor(hseg) :
 
 
 def vor_cell(nuc_bin_imp, cell) :
+	"""creates the voronoi for one cell, cell is assumed to have nucs"""
 	rm = RoiManager.getRoiManager()
 	rm.reset()
 
@@ -397,6 +409,7 @@ def vor_cell(nuc_bin_imp, cell) :
 
 ## could move to class
 def disp_hseg(hseg) :
+	"""display images of hseg and adds rois of hseg to RoiManager"""
 	if True :
 		RoiManager.getRoiManager().reset()
 
