@@ -14,9 +14,11 @@ import imp
 
 
 from bob_py.bob_lib import *
-from bob_py.fiji_conv import *
+# from bob_py.fiji_conv import *
 from bob_py.bob_lib import *
-from bob_py.fiji_conv import *
+# from bob_py.fiji_conv import *
+from fiji_utils import *
+from fiji_utils import *
 
 import brutils as br
 imp.reload(br)
@@ -42,7 +44,7 @@ if not canceled :
 
 	if IN_DEV :
 #		exper_path = "/Users/baylieslab/Documents/Amelia/data/patrick/2019-05-20_Dmef2-2xeGFP"
-		
+
 
 		exper_path = "/Users/baylieslab/Documents/Amelia/data/steffiData/150511_Lim3b-GFP_Hoe-GFP-H4K16ac-Fib-DL-Phal"
 	else :
@@ -69,9 +71,10 @@ if not canceled :
 			hemisegs.append(f)
 
 	exper = run_hemiseg(exper, hemisegs[0])
+	IJ.log(exper.name)
 
-	hseg = br.one_value(exper.hsegs)
-	vl3 = hseg.cells['vl3']
-	nuc = vl3.nucs[0]
-#	for hemiseg in hemisegs :
-#		exper = run_hemiseg(exper, hemiseg)
+	# hseg = br.one_value(exper.hsegs)
+	# vl3 = hseg.cells['vl3']
+	# nuc = vl3.nucs[0]
+	for hemiseg in hemisegs :
+		exper = run_hemiseg(exper, hemiseg)
