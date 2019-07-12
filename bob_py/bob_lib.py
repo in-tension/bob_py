@@ -1,13 +1,8 @@
 """ """
 
-
-
 import os
-# from pprint import pprint
 import csv
 import datetime
-
-# import importlib
 import imp
 
 
@@ -16,20 +11,12 @@ from ij.measure import ResultsTable
 from ij.gui import NonBlockingGenericDialog, Roi, PolygonRoi
 from ij.io import DirectoryChooser
 from ij.plugin import Duplicator
-
 from ij.plugin.frame import RoiManager
 
 
-
-
-
 from fiji_utils import *
-
-
 import brutils as br
 imp.reload(br)
-# imp.reload(br)
-
 
 class FijiInstUpdated :
 
@@ -43,19 +30,12 @@ class FijiInstUpdated :
 		else : return False
 
 
-
-
-
-
 UPDATE1 = FijiInstUpdated(True, datetime.date(2019, 6, 26))
 
 
-
 IN_DEV = True
-
-# DISP = False
-DISP = True
-
+DISP = False
+# DISP = True
 
 POT_FILE_SUFS = {
 	'raw_img' : '.tif',
@@ -73,7 +53,6 @@ VL4_SUF = '_XY-VL4.csv'
 
 
 ## Exper/Hemiseg/Cell/Nuc primarily used as structs
-
 class Exper :
 
 	def __init__(self, path, name) :
@@ -94,7 +73,6 @@ class Exper :
 		pass
 
 
-
 class Hemiseg :
 	def __init__(self, exper, name, suf) :
 		self.exper = exper
@@ -111,9 +89,10 @@ class Hemiseg :
 		self.problem_nucs = None
 
 
-
 class Cell :
 
+
+	## change this to take hseg so I can point back to it
 	def __init__(self, exper, hs_suf, name) :
 
 		self.exper = exper	## inst of Exper
@@ -135,8 +114,6 @@ class Cell :
 		self.nucs.append(nuc)
 
 
-
-
 class Nuc :
 
 	def __init__(self, cell, id_num) :
@@ -148,17 +125,15 @@ class Nuc :
 		self.vor_roi = None
 
 
-
-
-
-
-
-
 def setup() :
 	"""setup"""
 	## set setting to save column headers
 	IJ.run("Input/Output...", "jpeg=85 gif=-1 file=.csv use_file save_column");
-	force_close_all()
+
+	## set setting to copy column headers - not actually necessary
+	IJ.run("Input/Output...", "jpeg=85 gif=-1 file=.csv copy_column save_column");
+
+	force_close_all_images()
 	rm = RoiManager.getRoiManager()
 	rm.reset()
 	rm.show()
@@ -181,8 +156,6 @@ def run_hemiseg(exper, hemiseg_name) :
 
 
 	rm = RoiManager.getRoiManager()
-
-
 	if RAW_SUF not in hs_files :
 		IJ.log('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
 		## raise Exception('hemisegment {} does not have raw tif file {}'.format(hemiseg_name, hemiseg_name + RAW_SUF))
@@ -191,6 +164,7 @@ def run_hemiseg(exper, hemiseg_name) :
 		if DISP :
 			hseg.raw_imp.show()
 		hseg.cal = hseg.raw_imp.getCalibration()
+
 
 	## todo: Hemiseg as dict cells, currently manually doing keys
 	## in future, change csv file suf to _<muscle-name>_cell-roi.csv
@@ -218,16 +192,18 @@ def run_hemiseg(exper, hemiseg_name) :
 		IJ.log('hemisegment {} does not have nuc-bin file {}'.format(hemiseg_name, hemiseg_name + NUC_BIN_SUF))
 	else :
 		hseg.nuc_bin_imp = IJ.openImage(hs_files[NUC_BIN_SUF])
-
 		if DISP :
 			hseg.nuc_bin_imp.show()
-
 
 		problem_nucs = make_nucs(hseg)
 		if len(problem_nucs) > 0 :
 			hseg.problem_nucs = problem_nucs
 
 		make_vor(hseg)
+
+
+	calc(hseg)
+
 
 
 
@@ -240,6 +216,9 @@ def run_hemiseg(exper, hemiseg_name) :
 
 	return exper
 
+def calc(hseg) :
+	for cell in hseg.cells.values() :
+		cell.nuc_geo = measure_nuc(hseg.nuc_bin_imp, cell)
 
 
 
@@ -265,7 +244,6 @@ def read_vl_file(file_path, cal) :
 	return vl_roi
 
 
-
 def make_nucs(hseg) :
 	"""given an hseg, assumed to have a nuc_bin_imp, creates the nuc"""
 	rm = RoiManager.getRoiManager()
@@ -279,11 +257,8 @@ def make_nucs(hseg) :
 	IJ.run(hseg.nuc_bin_imp, "Analyze Particles...", "add")
 
 	rois = rm.getRoisAsArray()
-
 	problem_nucs = []
-
 	for roi in rois :
-
 		nuc_cent = roi_cent(roi, integer=True)
 
 		found_cell = False
@@ -300,7 +275,6 @@ def make_nucs(hseg) :
 	return problem_nucs
 
 
-
 def make_vor(hseg) :
 	"""given hseg, assumed to have cells and nucs"""
 	for cell in hseg.cells.values() :
@@ -308,47 +282,29 @@ def make_vor(hseg) :
 		vor_cell(hseg.nuc_bin_imp, cell)
 
 
-
-
 def vor_cell(nuc_bin_imp, cell) :
 	"""creates the voronoi for one cell, cell is assumed to have nucs"""
+
 	rm = RoiManager.getRoiManager()
 	rm.reset()
-
-
-
-
 	d = Duplicator()
 	nuc_bin_copy = d.run(nuc_bin_imp)
 
-
 	IJ.run(nuc_bin_copy, "Make Binary", "")
-	if DISP and IN_DEV:
-		nuc_bin_copy.show()
-
 	nuc_bin_copy.setRoi(cell.roi)
-
-	print(more_black_than_white(nuc_bin_copy))
 	IJ.run(nuc_bin_copy, "Clear Outside", "")
-
-
 
 	IJ.run(nuc_bin_copy, "Voronoi", "")
 
 	nuc_bin_copy.setRoi(None)
-
+	ip = nuc_bin_copy.getProcessor()
 	ip.setMinAndMax(0,1)
 	IJ.run(nuc_bin_copy, "Apply LUT", "")
-
 	IJ.run(nuc_bin_copy, "Invert", "")
 
 	nuc_bin_copy.setRoi(cell.roi)
-
 	IJ.run(nuc_bin_copy, "Analyze Particles...", "add")
 	vor_rois = rm.getRoisAsArray()
-
-
-
 
 
 	nuc_inds = [x for x in range(len(cell.nucs))]
@@ -361,24 +317,14 @@ def vor_cell(nuc_bin_imp, cell) :
 			nuc_cent = roi_cent(nuc_roi, integer=True)
 
 			if vor_roi.contains(*nuc_cent) :
-
 				cell.nucs[nuc_ind].vor_roi = vor_roi
-
 				## I don't think I need to do this, I could just use i outside of loop but it feels so insecure or something
 				temp = i
-
 				break
-			else :
-				pass
-
-
-
 
 		else :
 			IJ.log('cell: {}, issue with voronoi nuc match up'.format(cell.name))
-
 			rm.reset()
-
 			for i, nuc in enumerate(cell.nucs) :
 
 				x = int(nuc.roi.getXBase())
@@ -386,25 +332,14 @@ def vor_cell(nuc_bin_imp, cell) :
 				IJ.log('{}. ({},{})'.format(i,x,y))
 				add_roi(Roi(x,y,10,10), str(i))
 			IJ.log(str(nuc_inds))
-
 			add_roi(vor_roi, "vor_roi")
 
-
 			## raise RuntimeError('cell: {}, issue with voronoi nuc match up'.format(cell.name))
-
-
-
-
 
 		if temp is not None :
 			del nuc_inds[temp]
 
-	if not (DISP and IN_DEV):
-		force_close(nuc_bin_copy)
-
-
-
-
+	force_close(nuc_bin_copy)
 
 
 ## could move to class
@@ -416,18 +351,61 @@ def disp_hseg(hseg) :
 	hseg.raw_imp.show()
 	hseg.nuc_bin_imp.show()
 
-
-
 	for cell in hseg.cells.values() :
-
 		add_roi(cell.roi, name=cell.name)
 
 		for i, nuc in enumerate(cell.nucs) :
 			add_roi(nuc.roi, name='{} nuc {}'.format(cell.name, i))
-
 
 		for i, nuc in enumerate(cell.nucs) :
 			add_roi(nuc.vor_roi, name='{} vor {}'.format(cell.name, i))
 
 	for name, cell in hseg.cells.items() :
 		add_roi(cell.roi, name=name)
+
+
+# def measure_nuc(imp, cell, set_measure=MEAS_ALL) :
+# 	"""measure all nuclei for all headings
+# 	note.. side effects: ResultsTable and RoiManager cleared"""
+# 	rt = ResultsTable.getResultsTable()
+# 	rt.reset()
+#
+# 	rm = RoiManager.getRoiManager()
+# 	rm.reset()
+#
+#
+# 	for nuc in cell.nucs :
+# 		add_roi(nuc.roi)
+#
+# 	setMeasurementInt(set_measure)
+# 	rm.runCommand(imp,"Measure")
+# 	results = rt_to_col_dict()
+#
+# 	return results
+
+def measure_nuc(cell, imp) :
+	roi_set = []
+	for nuc in cell.nucs :
+		roi_set.append(nuc.roi)
+
+	nuc_results = measure_roi_set(roi_set, imp, set_measure=GEO_HDINGS)
+	return results
+
+def measure_roi_set(roi_set, imp, set_measure=MEAS_ALL) :
+	"""requires imp because it won't measure without one
+	note.. side effects: ResultsTable and RoiManager cleared"""
+
+	rt = ResultsTable.getResultsTable()
+	rt.reset()
+
+	rm = RoiManager.getRoiManager()
+	rm.reset()
+
+	for roi in roi_set :
+		add_roi(roi)
+
+	setMeasurementInt(set_measure)
+	rm.runCommand(imp,"Measure")
+	results = rt_to_col_dict()
+
+	return results

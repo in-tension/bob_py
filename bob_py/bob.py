@@ -73,8 +73,18 @@ if not canceled :
 	exper = run_hemiseg(exper, hemisegs[0])
 	IJ.log(exper.name)
 
-	# hseg = br.one_value(exper.hsegs)
-	# vl3 = hseg.cells['vl3']
-	# nuc = vl3.nucs[0]
+	
 	for hemiseg in hemisegs :
 		exper = run_hemiseg(exper, hemiseg)
+
+
+
+
+	hseg = br.one_value(exper.hsegs)
+	vl3 = hseg.cells['vl3']
+	nuc = vl3.nucs[0]
+	
+	measure_nuc(hseg.nuc_bin_imp, vl3)
+
+
+	
