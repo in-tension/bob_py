@@ -64,9 +64,9 @@ class Exper :
 
 
 	def cells_to_csv(self) :
-
-		for cell in cells :
-			cell.roi.getStatistics
+		pass
+		# for cell in cells :
+		# 	cell.roi.getStatistics
 
 
 	def nucs_to_csv(self) :
@@ -104,8 +104,12 @@ class Cell :
 
 		self.roi = None
 
+		self.geo = None
 
+		self.nuc_geo = None
+		self.vor_geo = None
 
+		self.nuc_intens = None
 
 	def add_nuc(self, roi) :
 		nuc = Nuc(self, len(self.nucs))
@@ -175,6 +179,7 @@ def run_hemiseg(exper, hemiseg_name) :
 		vl3.roi = read_vl_file(hs_files[VL3_SUF], hseg.cal)
 		hseg.cells['vl3'] = vl3
 		exper.cells[(vl3.hs_suf, vl3.name)] = vl3
+		# vl3.geo = measure_roi_set(vl3.roi, hseg.raw_imp)
 
 
 	if VL4_SUF not in hs_files :
@@ -202,7 +207,11 @@ def run_hemiseg(exper, hemiseg_name) :
 		make_vor(hseg)
 
 
-	calc(hseg)
+	for cell in hseg.cells.values() :
+		cell.geo = measure_roi_set(vl3.roi, hseg.raw_imp,set_measure=GEO_HDINGS)
+
+
+	measure_all(hseg)
 
 
 
@@ -216,7 +225,7 @@ def run_hemiseg(exper, hemiseg_name) :
 
 	return exper
 
-def calc(hseg) :
+def measure_all(hseg) :
 	for cell in hseg.cells.values() :
 		cell.nuc_geo = measure_nuc(hseg.nuc_bin_imp, cell)
 
@@ -383,29 +392,20 @@ def disp_hseg(hseg) :
 #
 # 	return results
 
-def measure_nuc(cell, imp) :
-	roi_set = []
+# def meas_cell(exper, imp) :
+
+
+def meas_nuc_and_vor(cell, imp) :
+	nuc_roi_set = []
+		vor_roi_set = []
+
 	for nuc in cell.nucs :
-		roi_set.append(nuc.roi)
+		nuc_roi_set.append(nuc.roi)
+		vor_roi_set.append(nuc.vor_roi)
 
-	nuc_results = measure_roi_set(roi_set, imp, set_measure=GEO_HDINGS)
-	return results
 
-def measure_roi_set(roi_set, imp, set_measure=MEAS_ALL) :
-	"""requires imp because it won't measure without one
-	note.. side effects: ResultsTable and RoiManager cleared"""
+	cell.nuc_geo = measure_roi_set(nuc_roi_set, imp, set_measure=GEO_HDINGS)
+	cell.vor_geo = measure_roi_set(vor_roi_set, imp, set_measure=GEO_HDINGS)
 
-	rt = ResultsTable.getResultsTable()
-	rt.reset()
 
-	rm = RoiManager.getRoiManager()
-	rm.reset()
-
-	for roi in roi_set :
-		add_roi(roi)
-
-	setMeasurementInt(set_measure)
-	rm.runCommand(imp,"Measure")
-	results = rt_to_col_dict()
-
-	return results
+	# return results

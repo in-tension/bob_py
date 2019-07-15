@@ -1,0 +1,9 @@
+{
+  "channesl": {
+    "<channel num>": ["<channel name/stain/antibody>", "<roi set to run over channel (projection?)"]
+  }
+
+
+
+
+}
