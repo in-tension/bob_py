@@ -397,7 +397,7 @@ def disp_hseg(hseg) :
 
 def meas_nuc_and_vor(cell, imp) :
 	nuc_roi_set = []
-		vor_roi_set = []
+	vor_roi_set = []
 
 	for nuc in cell.nucs :
 		nuc_roi_set.append(nuc.roi)

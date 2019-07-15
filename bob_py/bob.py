@@ -13,9 +13,10 @@ import imp
 
 
 
-from bob_py.bob_lib import *
-# from bob_py.fiji_conv import *
-from bob_py.bob_lib import *
+#from bob_py.bob_lib import *
+## from bob_py.fiji_conv import *
+#from bob_py.bob_lib import *
+from bob_py.input import *
 # from bob_py.fiji_conv import *
 from fiji_utils import *
 from fiji_utils import *
@@ -39,7 +40,7 @@ else :
 
 if not canceled :
 
-	setup()
+	Exper.setup()
 
 
 	if IN_DEV :
@@ -63,28 +64,26 @@ if not canceled :
 
 
 
-	hemisegs = []
-	fs = os.listdir(exper_path)
-
-	for f in fs :
-		if f.startswith(exper_name) :
-			hemisegs.append(f)
-
-	exper = run_hemiseg(exper, hemisegs[0])
-	IJ.log(exper.name)
-
-	
-	for hemiseg in hemisegs :
-		exper = run_hemiseg(exper, hemiseg)
-
+#	hemisegs = []
+#	fs = os.listdir(exper_path)
+#
+#	for f in fs :
+#		if f.startswith(exper_name) :
+#			hemisegs.append(f)
+#
+#	#exper = run_hemiseg(exper, hemisegs[0])
+#	exper = Exper(exper
+#	IJ.log(exper.name)
+#
+#
+#	for hemiseg in hemisegs :
+#		exper = run_hemiseg(exper, hemiseg)
+#
 
 
 
 	hseg = br.one_value(exper.hsegs)
 	vl3 = hseg.cells['vl3']
 	nuc = vl3.nucs[0]
-	
-	measure_nuc(hseg.nuc_bin_imp, vl3)
 
-
-	
+#	measure_nuc(hseg.nuc_bin_imp, vl3)
