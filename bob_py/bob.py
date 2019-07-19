@@ -40,7 +40,7 @@ else :
 
 if not canceled :
 
-	Exper.setup()
+#	Exper.setup()
 
 
 	if IN_DEV :
@@ -60,7 +60,7 @@ if not canceled :
 	exper_name = '_'.join(exper_name)
 
 
-	exper = Exper(exper_path, exper_name)
+	exper = InputExper(exper_path, exper_name)
 
 
 
@@ -85,5 +85,8 @@ if not canceled :
 	hseg = br.one_value(exper.hsegs)
 	vl3 = hseg.cells['vl3']
 	nuc = vl3.nucs[0]
+
+#	print(exper.hsegs.keys())
+	print(exper.json)
 
 #	measure_nuc(hseg.nuc_bin_imp, vl3)

@@ -4,6 +4,7 @@ import os
 import csv
 import datetime
 import imp
+import json
 
 
 from ij import IJ, WindowManager
@@ -18,19 +19,18 @@ from fiji_utils import *
 import brutils as br
 imp.reload(br)
 
-class FijiInstUpdated :
-
-	def __init__(self, val, date) :
-		self.val = val
-		self.date = date
-
-
-	def __bool__(self) :
-		if self.val : return True
-		else : return False
-
-
-UPDATE1 = FijiInstUpdated(True, datetime.date(2019, 6, 26))
+# class FijiInstUpdated :
+#
+# 	def __init__(self, val, date) :
+# 		self.val = val
+# 		self.date = date
+#
+#
+# 	def __bool__(self) :
+# 		if self.val : return True
+# 		else : return False
+#
+# UPDATE1 = FijiInstUpdated(True, datetime.date(2019, 6, 26))
 
 
 IN_DEV = True
@@ -51,19 +51,36 @@ NUC_BIN_SUF = '_Nuc-bin.tif'
 VL3_SUF = '_XY-VL3.csv'
 VL4_SUF = '_XY-VL4.csv'
 
+JSON_SUF = '.json'
+JSON_SPLIT_CHAR = 'json:'
 
-## Exper/Hemiseg/Cell/Nuc primarily used as structs
-class Exper :
 
+class InputExper :
 	def __init__(self, path, name) :
 		self.path = path
 		self.name = name
 
 
+		self.read_json_file()
+
 		self.hsegs = {}
 		self.cells = {}
 		self.make_hsegs()
 
+
+	def read_json_file(self) :
+		json_file_path = os.path.join(self.path, self.name + JSON_SUF)
+		# print(json_file_path)
+
+		if not os.path.exists(json_file_path) :
+			IJ.log('no experiment json file for experiment {}\npath:{}'.format(self.name,json_file_path))
+
+		else :
+			with open(json_file_path, 'r') as f :
+				raw_text = f.read()
+
+			ignore, json_text = raw_text.split(JSON_SPLIT_CHAR)
+			self.json = json.loads(json_text)
 
 	@staticmethod
 	def setup() :
@@ -84,9 +101,8 @@ class Exper :
 		"""creates self.hsegs and self.cells"""
 		fs = os.listdir(self.path)
 		for f in fs :
-			if f.startswith(self.name) :
-				self.hsegs[f] = Hseg(self, f)
-
+			if f.startswith(self.name) and os.path.isdir(os.path.join(self.path, f)):
+				self.hsegs[f.replace(self.name + '_','')] = InputHseg(self, f)
 
 
 	def get_id(self) :
@@ -94,12 +110,11 @@ class Exper :
 
 
 
-class Hseg :
+class InputHseg :
 	def __init__(self, exper, name) :
 		self.exper = exper
 		self.path = os.path.join(exper.path, name)
-		self.name = name
-		self.suf = self.name.replace(exper.name+'_', '')
+		self.name = name.replace(exper.name+'_', '')
 
 
 		self.raw_imp = None
@@ -109,22 +124,15 @@ class Hseg :
 		self.init_all()
 
 
-
-
-
 	def init_all(self) :
 		"""creates self.raw_imp, self.nuc_bin_imp and self.cells
 		make everything for one hemisegment"""
-		# hemiseg_path = os.path.join(self.exper.path, self.name)
-		# hs_suf = self.name.replace(self.exper.name+'_', '')
 
-		# self = Hemiseg(self.exper, self.name, hemiseg_path)
-
-		hs_files = {}	## {'suf' : 'path'}
+		hs_files = {}
 		fs = os.listdir(self.path)
 		for f in fs :
-			if f.startswith(self.name) :
-				suf = f.replace(self.name, '', 1)
+			if f.startswith(self.get_id()) :
+				suf = f.replace(self.get_id(), '', 1)
 				path = os.path.join(self.path,f)
 				hs_files[suf] = path
 
@@ -145,20 +153,19 @@ class Hseg :
 		if VL3_SUF not in hs_files :
 			IJ.log('hemisegment {} does not have vl3 csv file {}'.format(self.name, self.name + VL3_SUF))
 		else :
-			vl3 = Cell(self.exper, self, 'vl3')
-			vl3.roi = Hseg.read_vl_file(hs_files[VL3_SUF], self.cal)
+			vl3 = InputCell(self.exper, self, 'vl3')
+			vl3.roi = InputHseg.read_vl_file(hs_files[VL3_SUF], self.cal)
 			self.cells['vl3'] = vl3
+			# print(self.cells)
 			self.exper.cells[vl3.get_id()] = vl3
-			# vl3.geo = measure_roi_set(vl3.roi, self.raw_imp)
 
 
 		if VL4_SUF not in hs_files :
 			IJ.log('hemisegment {} does not have vl4 csv file {}'.format(self.name, self.name + VL4_SUF))
 		else :
-			vl4 = Cell(self.exper, self, 'vl4')
-			vl4.roi = Hseg.read_vl_file(hs_files[VL4_SUF], self.cal)
+			vl4 = InputCell(self.exper, self, 'vl4')
+			vl4.roi = InputHseg.read_vl_file(hs_files[VL4_SUF], self.cal)
 			self.cells['vl4'] = vl4
-
 			self.exper.cells[vl4.get_id()] = vl4
 
 
@@ -178,29 +185,11 @@ class Hseg :
 
 
 
-		cell_rois = [cell.roi for cell in self.cells.values()]
-		self.cell_geo = measure_roi_set(cell_rois, self.raw_imp, set_measure=MEAS_GEO)
-
-
-
-		# for cell in self.cells.values() :
-		# 	cell.geo = measure_roi_set(cell.roi, self.raw_imp,set_measure=GEO_HDINGS)
-
-
-		# measure_all(self)
-		self.measure_all()
-
-
-
+		# self.measure_all()
 		self.exper.hsegs[self.name] = self
-
 
 		if DISP :
 			self.disp_self()
-
-
-		# return self.exper
-
 
 
 	@staticmethod
@@ -226,14 +215,13 @@ class Hseg :
 		return vl_roi
 
 
-
 	def make_nucs(self) :
-		"""given an self, assumed to have a nuc_bin_imp, creates the nuc"""
+		""" """
 		rm = RoiManager.getRoiManager()
 		rm.reset()
 
-		if UPDATE1 :
-			IJ.run(self.nuc_bin_imp, "Invert", "")
+		# if UPDATE1 :
+		IJ.run(self.nuc_bin_imp, "Invert", "")
 
 		rt = ResultsTable.getResultsTable()
 		rt.reset()
@@ -255,20 +243,22 @@ class Hseg :
 				IJ.log('Nuc not in any cell for hemisegment {}'.format(self.name))
 				problem_nucs.append(roi)
 
+		# print(self.cells['vl3'].nucs)
 		return problem_nucs
 
-
-	def measure_all(self) :
-		for cell in self.cells.values() :
-			cell.meas_nuc_and_vor(self.nuc_bin_imp)
-
+	#
+	# def measure_all(self) :
+	# 	cell_rois = [cell.roi for cell in self.cells.values()]
+	# 	self.cell_geo = measure_roi_set(cell_rois, self.raw_imp, set_measure=MEAS_GEO)
+	#
+	# 	for cell in self.cells.values() :
+	# 		cell.meas_nuc_and_vor(self.nuc_bin_imp)
+	#
 
 	def make_vor(self) :
 		"""given hseg, assumed to have cells and nucs"""
 		for cell in self.cells.values() :
-			# IJ.log(cell.name)
 			cell.make_vor(self.nuc_bin_imp)
-			# vor_cell(self.nuc_bin_imp, cell)
 
 
 	def disp(self) :
@@ -293,18 +283,16 @@ class Hseg :
 
 
 	def get_id(self) :
-		return '_'.join([self.exper.get_id(), self.suf])
+		return '_'.join([self.exper.get_id(), self.name])
 
 
 
-class Cell :
-
+class InputCell :
 
 	def __init__(self, exper, hseg, name) :
 
-		self.exper = exper	## inst of Exper
+		self.exper = exper
 		self.hseg = hseg
-		# self.hs_suf = hs_suf	## just a str of L(larva #) (L|R)(Hemisegment #)
 		self.name = name	## str -> vl3 or vl4
 
 
@@ -320,21 +308,18 @@ class Cell :
 		self.nuc_intens = None
 
 
-
 	def add_nuc(self, roi) :
-		nuc = Nuc(self, len(self.nucs))
+		nuc = InputNuc(self, len(self.nucs))
 		nuc.roi = roi
 
 		self.nucs.append(nuc)
+
 
 	def make_vor(self, nuc_bin_imp) :
 		"""creates the voronoi for one self, self is assumed to have nucs"""
 
 		vor_rois = self.make_vor_roi(nuc_bin_imp)
 		self.match_vor_nuc(vor_rois)
-
-
-
 
 
 	def make_vor_roi(self, nuc_bin_imp) :
@@ -364,8 +349,8 @@ class Cell :
 		return vor_rois
 
 
-
 	def match_vor_nuc(self, vor_rois) :
+		rm = RoiManager.getRoiManager()
 		nuc_inds = [x for x in range(len(self.nucs))]
 		for vor_roi in vor_rois :
 
@@ -398,33 +383,35 @@ class Cell :
 			if temp is not None :
 				del nuc_inds[temp]
 
-	def meas_nuc_and_vor(self, imp) :
-		nuc_roi_set = []
-		vor_roi_set = []
-
-		for nuc in self.nucs :
-			nuc_roi_set.append(nuc.roi)
-			vor_roi_set.append(nuc.vor_roi)
-
-
-		self.nuc_geo = measure_roi_set(nuc_roi_set, imp, set_measure=MEAS_GEO)
-		self.vor_geo = measure_roi_set(vor_roi_set, imp, set_measure=MEAS_GEO)
-
+	#
+	# def meas_nuc_and_vor(self, imp) :
+	# 	nuc_roi_set = []
+	# 	vor_roi_set = []
+	#
+	# 	for nuc in self.nucs :
+	# 		nuc_roi_set.append(nuc.roi)
+	# 		vor_roi_set.append(nuc.vor_roi)
+	#
+	# 	self.nuc_geo = measure_roi_set(nuc_roi_set, imp, set_measure=MEAS_GEO)
+	# 	self.vor_geo = measure_roi_set(vor_roi_set, imp, set_measure=MEAS_GEO)
 
 
 	def get_id(self) :
 		return '_'.join([self.hseg.get_id(), self.name])
 
 
-class Nuc :
+
+class InputNuc :
 
 	def __init__(self, cell, id_num) :
 		self.cell = cell
 		self.id_num = id_num
+		self.name = 'nuc-' + str(self.id_num)
 
 		self.roi = None
 
 		self.vor_roi = None
 
+
 	def get_id(self) :
-		return '_'.join([self.cell.get_id(), 'nuc-' + str(self.id_num)])
+		return '_'.join([self.cell.get_id(), self.name])
